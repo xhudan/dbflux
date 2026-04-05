@@ -2731,6 +2731,7 @@ dependencies = [
  "dbflux_mcp_server",
  "dbflux_policy",
  "dbflux_proxy",
+ "dbflux_schema_viz",
  "dbflux_ssh",
  "dbflux_ssm",
  "dbflux_storage",
