@@ -413,7 +413,7 @@ impl Sidebar {
                 profile_children = Self::build_schema_children(
                     profile_id,
                     database_name,
-                    None,
+                    Some("main"),
                     schema,
                     &connected.table_details,
                     &connected.schema_types,
