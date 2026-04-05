@@ -2746,6 +2746,7 @@ dependencies = [
  "log",
  "lsp-types",
  "open",
+ "petgraph",
  "rfd",
  "serde_json",
  "tokio",
