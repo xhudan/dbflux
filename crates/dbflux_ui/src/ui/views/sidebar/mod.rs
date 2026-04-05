@@ -29,6 +29,7 @@ use dbflux_core::{
     ReindexRequest, SchemaCacheKey, SchemaForeignKeyInfo, SchemaIndexInfo, SchemaLoadingStrategy,
     SchemaNodeId, SchemaNodeKind, SchemaSnapshot, TableInfo, TableRef, TaskId, TypeDefinition,
     ViewInfo,
+    DriverCapabilities,
 };
 use gpui::prelude::FluentBuilder;
 use gpui::*;
@@ -80,6 +81,13 @@ pub enum SidebarEvent {
     },
     OpenScript {
         path: std::path::PathBuf,
+    },
+    /// Open schema visualization for a table.
+    OpenSchemaViz {
+        profile_id: Uuid,
+        database: Option<String>,
+        schema: Option<String>,
+        table: String,
     },
     /// Pipeline connect started.
     PipelineStarted {
@@ -192,6 +200,7 @@ pub enum ContextMenuAction {
     Open,
     OpenChildPicker,
     ViewSchema,
+    ViewRelationships,
     GenerateCode(String),
     Connect,
     Disconnect,
@@ -264,6 +273,7 @@ impl ContextMenuAction {
             Self::Open => Some(AppIcon::Eye),
             Self::OpenChildPicker => Some(AppIcon::ScrollText),
             Self::ViewSchema => Some(AppIcon::Table),
+            Self::ViewRelationships => Some(AppIcon::Link2),
             Self::GenerateCode(_) => Some(AppIcon::Code),
             Self::Connect => Some(AppIcon::Plug),
             Self::Disconnect => Some(AppIcon::Unplug),
@@ -1150,6 +1160,23 @@ impl Sidebar {
                 profile_id,
                 target,
                 title: name,
+            });
+        }
+    }
+
+    fn open_schema_viz(&mut self, item_id: &str, cx: &mut Context<Self>) {
+        if let Some(SchemaNodeId::Table {
+            profile_id,
+            database,
+            schema,
+            name,
+        }) = parse_node_id(item_id)
+        {
+            cx.emit(SidebarEvent::OpenSchemaViz {
+                profile_id,
+                database,
+                schema: Some(schema),
+                table: name,
             });
         }
     }
