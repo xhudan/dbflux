@@ -1,31 +1,31 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::LazyLock;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use dbflux_core::secrecy::{ExposeSecret, SecretString};
 use dbflux_core::{
-    AddEnumValueRequest, AddForeignKeyRequest, CodeGenCapabilities, CodeGenScope, CodeGenerator,
-    CodeGeneratorInfo, ColumnInfo, ColumnMeta, Connection, ConnectionErrorFormatter, ConnectionExt,
-    ConnectionProfile, ConstraintInfo, ConstraintKind, CreateIndexRequest, CreateTypeRequest,
-    CrudResult, CustomTypeInfo, CustomTypeKind, DatabaseCategory, DatabaseInfo, DbConfig, DbDriver,
-    DbError, DbKind, DbSchemaInfo, DdlCapabilities, DescribeRequest, DocumentConnection,
-    DriverCapabilities, DriverFormDef, DriverLimits, DriverMetadata, DropForeignKeyRequest,
-    DropIndexRequest, DropTypeRequest, ErrorLocation, ExplainRequest, ForeignKeyBuilder,
-    ForeignKeyInfo, FormValues, FormattedError, Icon, IndexData, IndexInfo, IsolationLevel,
-    KeyValueConnection, MutationCapabilities, OrderByColumn, POSTGRES_FORM, PaginationStyle,
+    generate_create_table, generate_delete_template, generate_drop_table, generate_insert_template,
+    generate_select_star, generate_truncate, generate_update_template, render_semantic_filter_sql,
+    sanitize_uri, AddEnumValueRequest, AddForeignKeyRequest, CodeGenCapabilities, CodeGenScope,
+    CodeGenerator, CodeGeneratorInfo, ColumnInfo, ColumnMeta, Connection, ConnectionErrorFormatter,
+    ConnectionExt, ConnectionProfile, ConstraintInfo, ConstraintKind, CreateIndexRequest,
+    CreateTypeRequest, CrudResult, CustomTypeInfo, CustomTypeKind, DatabaseCategory, DatabaseInfo,
+    DbConfig, DbDriver, DbError, DbKind, DbSchemaInfo, DdlCapabilities, DescribeRequest,
+    DocumentConnection, DriverCapabilities, DriverFormDef, DriverLimits, DriverMetadata,
+    DropForeignKeyRequest, DropIndexRequest, DropTypeRequest, ErrorLocation, ExplainRequest,
+    ForeignKeyBuilder, ForeignKeyInfo, FormValues, FormattedError, Icon, IndexData, IndexInfo,
+    IsolationLevel, KeyValueConnection, MutationCapabilities, OrderByColumn, PaginationStyle,
     PlaceholderStyle, QueryCancelHandle, QueryCapabilities, QueryErrorFormatter, QueryGenerator,
     QueryHandle, QueryLanguage, QueryRequest, QueryResult, ReindexRequest, RelationalConnection,
     RelationalSchema, Row, RowDelete, RowInsert, RowPatch, SchemaFeatures, SchemaForeignKeyBuilder,
     SchemaForeignKeyInfo, SchemaIndexInfo, SchemaLoadingStrategy, SchemaSnapshot, SemanticPlan,
     SemanticPlanKind, SemanticRequest, SortDirection, SqlDialect, SqlMutationGenerator,
     SqlQueryBuilder, SshTunnelConfig, SslMode, SyntaxInfo, TableInfo, TransactionCapabilities,
-    TypeDefinition, Value, ViewInfo, WhereOperator, generate_create_table,
-    generate_delete_template, generate_drop_table, generate_insert_template, generate_select_star,
-    generate_truncate, generate_update_template, render_semantic_filter_sql, sanitize_uri,
+    TypeDefinition, Value, ViewInfo, WhereOperator, POSTGRES_FORM,
 };
 use dbflux_ssh::SshTunnel;
 use native_tls::TlsConnector;
@@ -2009,6 +2009,46 @@ impl Connection for PostgresConnection {
     fn translate_filter(&self, filter: &Value) -> Result<String, DbError> {
         Ok(translate_filter_to_sql(filter))
     }
+
+    fn schema_for_database(&self, database: &str) -> Result<DbSchemaInfo, DbError> {
+        let mut client = self
+            .client
+            .lock()
+            .map_err(|e| DbError::QueryFailed(format!("Lock error: {}", e).into()))?;
+
+        let schemas = get_schemas(&mut client)?;
+
+        let mut all_tables = Vec::new();
+        let mut all_views = Vec::new();
+        let mut custom_types = Vec::new();
+
+        for schema in schemas {
+            all_tables.extend(schema.tables);
+            all_views.extend(schema.views);
+            if let Some(types) = schema.custom_types {
+                custom_types.extend(types);
+            }
+        }
+
+        log::info!(
+            "[SCHEMA] schema_for_database({}): {} tables, {} views, {} custom types",
+            database,
+            all_tables.len(),
+            all_views.len(),
+            custom_types.len()
+        );
+
+        Ok(DbSchemaInfo {
+            name: database.to_string(),
+            tables: all_tables,
+            views: all_views,
+            custom_types: if custom_types.is_empty() {
+                None
+            } else {
+                Some(custom_types)
+            },
+        })
+    }
 }
 
 impl RelationalConnection for PostgresConnection {}
@@ -3513,11 +3553,9 @@ mod tests {
     #[test]
     fn parse_uri_rejects_non_postgres_schemes() {
         let driver = PostgresDriver::new();
-        assert!(
-            driver
-                .parse_uri("mysql://root@localhost:3306/app")
-                .is_none()
-        );
+        assert!(driver
+            .parse_uri("mysql://root@localhost:3306/app")
+            .is_none());
     }
 
     #[test]
