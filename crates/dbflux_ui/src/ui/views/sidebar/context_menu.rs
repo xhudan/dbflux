@@ -1114,6 +1114,8 @@ impl Sidebar {
         };
         let metadata = conn.connection.metadata();
         metadata.category == DatabaseCategory::Relational
-            && metadata.capabilities.contains(DriverCapabilities::FOREIGN_KEYS)
+            && metadata
+                .capabilities
+                .contains(DriverCapabilities::FOREIGN_KEYS)
     }
 }
