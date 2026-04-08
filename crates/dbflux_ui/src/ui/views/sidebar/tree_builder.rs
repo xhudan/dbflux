@@ -428,14 +428,18 @@ impl Sidebar {
                     &connected.schema_foreign_keys,
                 );
 
-                profile_children.push(TreeItem::new(
-                    SchemaNodeId::Database {
-                        profile_id,
-                        name: database_name.to_string(),
-                    }
-                    .to_string(),
-                    database_name.to_string(),
-                ).expanded(is_expanded).children(db_children));
+                profile_children.push(
+                    TreeItem::new(
+                        SchemaNodeId::Database {
+                            profile_id,
+                            name: database_name.to_string(),
+                        }
+                        .to_string(),
+                        database_name.to_string(),
+                    )
+                    .expanded(is_expanded)
+                    .children(db_children),
+                );
             }
 
             profile_item = profile_item.expanded(is_active).children(profile_children);
